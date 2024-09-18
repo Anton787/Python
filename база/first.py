@@ -24,6 +24,7 @@ print(type(Orange.fall))
 print(type(or1.fall))
 
 
+
 print(or1.__dict__)
 
 # Практика по базе ВОИН
