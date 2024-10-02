@@ -27,8 +27,8 @@ class TaskManager:
         del self.listTask[key]
     
     def change_status(self, title, status='done'):
-        task = list(filter(lambda elem: elem.title == title, self.listTask))[0]
-        task.setStatus(status)
+        task = list(filter(lambda elem: elem.title == title, self.listTask))
+        task[0].setStatus(status)
         print(task.status)
     
     def get_tasks_by_priority(self, listTask, priority):
@@ -41,7 +41,7 @@ class TaskManager:
     
 
 m1 = TaskManager()
-
+t1 = Task()
 
 m1.add_task(t1)
 print(m1.list_all_task())
