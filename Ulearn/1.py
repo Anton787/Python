@@ -1,33 +1,13 @@
-import socket
-import json
+import pandas as pd
 
+df1 = pd.read_csv('student_works/currency.csv')
+df2 = pd.read_csv('student_works/correct_result.csv')
 
-def send_request(data):
-    host = "127.0.0.32"
-    port = 12345
-
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client_socket.connect((host, port))
-
-    data_string = json.dumps(data)
-    client_socket.sendall(data_string.encode())
-
-    response = client_socket.recv(1024).decode()
-    client_socket.close()
-
-    return response
-
-
-data = {
-    "command": "get_data",
-    "operation": "get_number_of_employees",
-    "name": "Bauer-Weiss"
-}
-
-response_str = send_request(data)
-print(response_str)
-response_data = json.loads(response_str)
-print(response_data)
-result = response_data.get("result")
-
-print(result)
+if df1.equals(df2):
+    print("Содержимое файлов идентично.")
+else:
+    print("Содержимое файлов различается.")
+    # Покажем различия между двумя DataFrame
+    differences = df1.compare(df2)
+    print("Различия между файлами:")
+    print(differences)

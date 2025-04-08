@@ -1,66 +1,57 @@
-import socket
-import pandas as pd
-import json
+import requests
+import csv
+from datetime import datetime
+from xml.etree import ElementTree as ET
+from time import time
 
-def handle_request(request, df):
-    command = request.get("command")
-    operation = request.get("operation")
-    name = request.get("name")
+URL = "http://www.cbr.ru/scripts/XML_daily.asp"
+CURRENCIES = ["BYR", "USD", "EUR", "KZT", "UAH", "AZN", "KGS", "UZS", "GEL"]
+START_DATE = datetime(2003, 1, 1)
+END_DATE = datetime(2024, 11, 1)
+OUTPUT_FILE = "student_works/currency.csv"
 
-    df['NormalizedName'] = df['Name'].str.strip().str.lower()
-    org_info = df[df['NormalizedName'] == name.strip().lower()]
-    if command == 'get_data':
-        match operation:
-            case "get_website":
-                return {"result": org_info.iloc[0]['Website']}
-            case "get_country":
-                return {"result": org_info.iloc[0]['Country']}
-            case "get_number_of_employees":
-                return {"result": int(org_info.iloc[0]['Number of employees'])}
-            case "get_description":
-                return {"result": org_info.iloc[0]['Description']}
+def fetch_exchange_rates(session, date):
+    params = {"date_req": date.strftime("%d/%m/%Y")}
+    response = session.get(URL, params=params)
+    response.raise_for_status()
+    return response.text
 
-def start_server():
-    df = pd.read_csv('organizations.csv')
+def parse_exchange_rates(xml_data, currencies):
+    rates = {currency: None for currency in currencies}
+    root = ET.fromstring(xml_data)
 
-    host = "127.0.0.32"
-    port = 12345
+    for valute in root.findall(".//Valute"):
+        char_code = valute.find("CharCode").text
+        if char_code in currencies:
+            value = float(valute.find("Value").text.replace(",", "."))
+            nominal = int(valute.find("Nominal").text)
+            rates[char_code] = round(value / nominal, 8)
+    return rates
 
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_socket.bind((host, port))
-    server_socket.listen(10)
+def generate_month_starts(start_date, end_date):
+    current_date = start_date
+    while current_date <= end_date:
+        yield current_date
+        next_month = current_date.month % 12 + 1
+        year = current_date.year + (current_date.month // 12)
+        current_date = datetime(year, next_month, 1)
 
-    try:
-        client_socket, address = server_socket.accept()
+def main():
+    start_time = time()
+    data = []
 
-        with client_socket:
-            while True:
-                try:
-                    data = client_socket.recv(1024).decode()
+    with requests.Session() as session:
+        for date in generate_month_starts(START_DATE, END_DATE):
+            xml_data = fetch_exchange_rates(session, date)
+            rates = parse_exchange_rates(xml_data, CURRENCIES)
+            data.append([date.strftime("%Y-%m")] + [rates[currency] for currency in CURRENCIES])
 
-                    if not data:
-                        response = {"error": "No data received"}
-                        client_socket.sendall(json.dumps(response).encode())
-                        break
+    with open(OUTPUT_FILE, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow(["date"] + CURRENCIES)
+        writer.writerows(data)
 
-                    request = json.loads(data)
-
-                except json.JSONDecodeError:
-                    response = {"error": "Invalid JSON format"}
-                    client_socket.sendall(json.dumps(response).encode())
-                    break
-                except Exception:
-                    response = {"error": "Unexpected error"}
-                    client_socket.sendall(json.dumps(response).encode())
-                    break
-
-                response = handle_request(request, df)
-                client_socket.sendall(json.dumps(response).encode())
-
-    except KeyboardInterrupt:
-        pass
-    finally:
-        server_socket.close()
+    print(f"Итоговый Время выполнения: {time() - start_time:.2f} секунд")
 
 if __name__ == "__main__":
-    start_server()
+    main()
